@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splynx Ticket Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        textarea:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .submit-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        .submit-btn:hover {
+            background-color: #45a049;
+        }
+        .submit-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .files-section {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+        .file-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .file-item {
+            background-color: #e8f5e8;
+            padding: 10px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #2c5530;
+            border: 1px solid #c8e6c9;
+        }
+        .file-item:hover {
+            background-color: #d4edda;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎫 Splynx Ticket Scraper</h1>
+        
+        <form id="scraperForm" action="/cgi-bin/scrape.py" method="POST">
+            <div class="form-group">
+                <label for="ticket_url">Paste Splynx Ticket URL:</label>
+                <textarea 
+                    id="ticket_url" 
+                    name="ticket_url" 
+                    placeholder="https://portal.example.com/public/tickets?ticket=..." 
+                    required
+                ></textarea>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="submitBtn">
+                🚀 Scrape Ticket
+            </button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="files-section">
+            <h2>📁 Available Files</h2>
+            <div class="file-list" id="fileList">
+                <div class="loading">Loading files...</div>
+            </div>
+            <p><small>Files refresh automatically after scraping</small></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('scraperForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const status = document.getElementById('status');
+            const urlField = document.getElementById('ticket_url');
+            
+            // Validate URL
+            const url = urlField.value.trim();
+            if (!url.startsWith('http')) {
+                showStatus('Please enter a valid URL starting with http:// or https://', 'error');
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Scraping...';
+            showStatus('Scraping ticket content...', 'loading');
+            
+            // Submit form
+            const formData = new FormData();
+            formData.append('ticket_url', url);
+            
+            fetch('/cgi-bin/scrape.py', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                if (data.includes('SUCCESS')) {
+                    showStatus('✅ Ticket scraped successfully! Check the files section below.', 'success');
+                    setTimeout(refreshFileList, 1000);
+                } else {
+                    showStatus('❌ Error: ' + data, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('❌ Network error: ' + error.message, 'error');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 Scrape Ticket';
+            });
+        });
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+        
+        function refreshFileList() {
+            fetch('/cgi-bin/list_files.py')
+                .then(response => response.json())
+                .then(data => {
+                    const fileList = document.getElementById('fileList');
+                    if (data.files && data.files.length > 0) {
+                        fileList.innerHTML = '';
+                        data.files.forEach(file => {
+                            const fileItem = document.createElement('a');
+                            fileItem.href = file.url;
+                            fileItem.className = 'file-item';
+                            
+                            let icon = '📄';
+                            if (file.name.endsWith('.py')) icon = '🐍';
+                            else if (file.name.endsWith('.txt')) icon = '📄';
+                            
+                            const sizeKB = Math.round(file.size / 1024);
+                            fileItem.innerHTML = `${icon} ${file.name} <small>(${sizeKB}KB, ${file.modified})</small>`;
+                            fileList.appendChild(fileItem);
+                        });
+                    } else {
+                        fileList.innerHTML = '<div class="loading">No files available</div>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('fileList').innerHTML = '<div class="loading">Error loading files</div>';
+                });
+        }
+        
+        // Load files on page load
+        document.addEventListener('DOMContentLoaded', refreshFileList);
+    </script>
+</body>
+</html>
